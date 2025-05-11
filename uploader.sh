@@ -1,37 +1,35 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/bin/bash
 
-# Prompt user untuk input token dan info repo
-read -p "GitHub Username: " USERNAME
-read -p "Repository Name: " REPO_NAME
-read -p "Branch (default: main): " BRANCH
-read -sp "GitHub Token: " GITHUB_TOKEN
-echo
+echo "GitHub Username: "
+read username
+echo "Repository Name: "
+read repo
+echo "Branch (default: main): "
+read branch
+branch=${branch:-main}
+echo "GitHub Token: "
+read token
 
-# Default ke 'main' jika tidak diisi
-BRANCH=${BRANCH:-main}
+# Inisialisasi Git
+echo "[*] Inisialisasi Git repo..."
+git init
 
-REPO_URL="https://${GITHUB_TOKEN}@github.com/${USERNAME}/${REPO_NAME}.git"
+# Tambahkan direktori aktif sebagai safe.directory
+current_dir=$(pwd)
+git config --global --add safe.directory "$current_dir"
 
-# Inisialisasi git repo jika belum
-if [ ! -d .git ]; then
-    echo "[*] Inisialisasi Git repo..."
-    git init
-    git remote add origin "$REPO_URL"
-else
-    git remote set-url origin "$REPO_URL"
-fi
+# Tambahkan remote origin
+git remote remove origin 2>/dev/null
+git remote add origin https://$username:$token@github.com/$username/$repo.git
 
-# Tambahkan dan commit semua file
+# Tambahkan semua file, commit, dan push
 echo "[*] Menambahkan semua file..."
 git add .
+echo "[*] Commit dengan pesan: Upload"
+git commit -m "Upload: $(date)"
 
-COMMIT_MSG="Upload: $(date)"
-echo "[*] Commit dengan pesan: $COMMIT_MSG"
-git commit -m "$COMMIT_MSG"
-
-# Push ke repo
 echo "[*] Push ke GitHub..."
-git branch -M "$BRANCH"
-git push -u origin "$BRANCH"
+git branch -M $branch
+git push -u origin $branch
 
-echo "[✓] Upload selesai ke $REPO_NAME di cabang $BRANCH!"
+echo "[v] Upload selesai ke $repo di cabang $branch!"
