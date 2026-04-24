@@ -82,47 +82,65 @@ while read -r repo; do
   ((i++))
 done <<< "$repos"
 
-echo ""
-read -p "👉 Masukkan Nomor: " pilih_repo
-
-# =========================
-# BUAT REPO BARU
-# =========================
-if [ "$pilih_repo" = "0" ]; then
+# 🔥 LOOP PILIH REPO
+while true; do
   echo ""
-  read -p "✨ Masukkan Nama Repository Baru: " repo
-  read -p "🔓 Public atau Private? (public/private): " visibility
+  read -p "👉 Masukkan Nomor Repository: " pilih_repo
 
-  if [ "$visibility" = "private" ]; then
-    private=true
+  if [ "$pilih_repo" = "0" ]; then
+    echo ""
+    read -p "✨ Masukkan Nama Repository Baru: " repo
+
+    # 🔥 PILIH VISIBILITY
+    echo ""
+    echo -e "${CYAN}🔓 Pilih Visibilitas Repository${NC}"
+    echo -e "${YELLOW}[1]${NC} Public"
+    echo -e "${YELLOW}[2]${NC} Private"
+
+    while true; do
+      read -p "👉 Masukkan Nomor (1/2): " vis_choice
+      case $vis_choice in
+        1)
+          private=false
+          success "Visibilitas: Public"
+          break
+          ;;
+        2)
+          private=true
+          success "Visibilitas: Private"
+          break
+          ;;
+        *)
+          warn "Input Tidak Valid, Pilih 1 atau 2"
+          ;;
+      esac
+    done
+
+    info "Membuat Repository Baru..."
+
+    response=$(curl -s -X POST https://api.github.com/user/repos \
+      -H "Authorization: token $token" \
+      -d "{\"name\":\"$repo\",\"private\":$private}")
+
+    if echo "$response" | grep -q '"full_name"'; then
+      success "Repository Berhasil Dibuat: $repo"
+      break
+    else
+      error "Gagal Membuat Repository"
+      echo "$response"
+    fi
+
   else
-    private=false
+    repo=${repo_list[$pilih_repo]}
+
+    if [ -n "$repo" ]; then
+      success "Repository Dipilih: $repo"
+      break
+    else
+      warn "Pilihan Tidak Valid, Coba Lagi"
+    fi
   fi
-
-  info "Membuat Repository Baru..."
-
-  response=$(curl -s -X POST https://api.github.com/user/repos \
-    -H "Authorization: token $token" \
-    -d "{\"name\":\"$repo\",\"private\":$private}")
-
-  if echo "$response" | grep -q '"full_name"'; then
-    success "Repository Berhasil Dibuat: $repo"
-  else
-    error "Gagal Membuat Repository"
-    echo "$response"
-    exit 1
-  fi
-
-else
-  repo=${repo_list[$pilih_repo]}
-
-  if [ -z "$repo" ]; then
-    error "Pilihan Repository Tidak Valid"
-    exit 1
-  fi
-
-  success "Repository Dipilih: $repo"
-fi
+done
 
 echo ""
 
@@ -130,7 +148,6 @@ echo ""
 # PILIH BRANCH
 # =========================
 info "Mengambil Daftar Branch..."
-
 branches=$(curl -s -H "Authorization: token $token" https://api.github.com/repos/$username/$repo/branches | grep '"name"' | cut -d '"' -f4)
 
 line
@@ -138,7 +155,7 @@ echo -e "${CYAN}🌿 Pilih Branch${NC}"
 line
 
 if [ -z "$branches" ]; then
-  warn "Belum Ada Branch, Akan Menggunakan 'main'"
+  warn "Belum Ada Branch, Menggunakan 'main'"
   branch="main"
 else
   i=1
@@ -151,20 +168,29 @@ else
   done <<< "$branches"
 
   echo -e "${YELLOW}[0]${NC} Buat Branch Baru"
-  echo ""
 
-  read -p "👉 Masukkan Nomor Branch: " pilih_branch
+  # 🔥 LOOP PILIH BRANCH
+  while true; do
+    echo ""
+    read -p "👉 Masukkan Nomor Branch: " pilih_branch
 
-  if [ "$pilih_branch" = "0" ]; then
-    read -p "✨ Masukkan Nama Branch Baru: " branch
-  else
-    branch=${branch_list[$pilih_branch]}
-  fi
+    if [ "$pilih_branch" = "0" ]; then
+      read -p "✨ Masukkan Nama Branch Baru: " branch
+      if [ -n "$branch" ]; then
+        break
+      else
+        warn "Nama Branch Tidak Boleh Kosong"
+      fi
+    else
+      branch=${branch_list[$pilih_branch]}
 
-  if [ -z "$branch" ]; then
-    error "Pilihan Branch Tidak Valid"
-    exit 1
-  fi
+      if [ -n "$branch" ]; then
+        break
+      else
+        warn "Pilihan Tidak Valid, Coba Lagi"
+      fi
+    fi
+  done
 fi
 
 success "Branch Dipilih: $branch"
@@ -205,7 +231,6 @@ fi
 git branch -M "$branch"
 
 remote_url="https://$token@github.com/$username/$repo.git"
-
 git remote add origin "$remote_url" 2>/dev/null || git remote set-url origin "$remote_url"
 
 # =========================
@@ -215,10 +240,16 @@ line
 info "Mengunggah ke GitHub..."
 line
 
-git push -u origin "$branch" || git push -u origin "$branch" --force
+if git push -u origin "$branch"; then
+  success "Upload Berhasil!"
+else
+  warn "Push Gagal, Mencoba Force Push..."
+  git push -u origin "$branch" --force
+  success "Force Push Berhasil!"
+fi
 
 echo ""
 line
-echo -e "${GREEN}🎉 SELESAI!${NC}"
+echo -e "${GREEN}🎉 PROSES SELESAI!${NC}"
 echo -e "${CYAN}🔗 https://github.com/$username/$repo${NC}"
 line
