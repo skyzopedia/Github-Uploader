@@ -37,28 +37,27 @@ info() {
 # =========================
 clear
 line
-echo -e "${CYAN} 🚀 Skyzopedia GitHub Uploader${NC}"
+echo -e "${CYAN}   🚀 GitHub Smart Uploader${NC}"
 line
 echo ""
 
 # =========================
-# INPUT TOKEN
+# INPUT TOKEN (LOOP)
 # =========================
-read -p "🔑 Masukkan GitHub Token: " token
-echo ""
+while true; do
+  read -p "🔑 Masukkan GitHub Token: " token
 
-# =========================
-# AMBIL USERNAME
-# =========================
-info "Mengambil Data Akun..."
-username=$(curl -s -H "Authorization: token $token" https://api.github.com/user | grep '"login"' | cut -d '"' -f4)
+  info "Memvalidasi Token..."
+  username=$(curl -s -H "Authorization: token $token" https://api.github.com/user | grep '"login"' | cut -d '"' -f4)
 
-if [ -z "$username" ]; then
-  error "Token Tidak Valid!"
-  exit 1
-fi
+  if [ -n "$username" ]; then
+    success "Login Sebagai: $username"
+    break
+  else
+    error "Token Tidak Valid, Coba Lagi!"
+  fi
+done
 
-success "Login Sebagai: $username"
 echo ""
 
 # =========================
@@ -82,16 +81,27 @@ while read -r repo; do
   ((i++))
 done <<< "$repos"
 
-# 🔥 LOOP PILIH REPO
+# =========================
+# LOOP PILIH REPO
+# =========================
 while true; do
   echo ""
   read -p "👉 Masukkan Nomor Repository: " pilih_repo
 
+  # ===== BUAT REPO BARU =====
   if [ "$pilih_repo" = "0" ]; then
-    echo ""
-    read -p "✨ Masukkan Nama Repository Baru: " repo
 
-    # 🔥 PILIH VISIBILITY
+    # Nama repo valid
+    while true; do
+      read -p "✨ Masukkan Nama Repository Baru: " repo
+      if [ -n "$repo" ]; then
+        break
+      else
+        warn "Nama Repository Tidak Boleh Kosong"
+      fi
+    done
+
+    # Visibility
     echo ""
     echo -e "${CYAN}🔓 Pilih Visibilitas Repository${NC}"
     echo -e "${YELLOW}[1]${NC} Public"
@@ -126,8 +136,7 @@ while true; do
       success "Repository Berhasil Dibuat: $repo"
       break
     else
-      error "Gagal Membuat Repository"
-      echo "$response"
+      error "Gagal Membuat Repository, Coba Lagi!"
     fi
 
   else
@@ -145,7 +154,7 @@ done
 echo ""
 
 # =========================
-# PILIH BRANCH
+# AMBIL BRANCH
 # =========================
 info "Mengambil Daftar Branch..."
 branches=$(curl -s -H "Authorization: token $token" https://api.github.com/repos/$username/$repo/branches | grep '"name"' | cut -d '"' -f4)
@@ -154,44 +163,43 @@ line
 echo -e "${CYAN}🌿 Pilih Branch${NC}"
 line
 
-if [ -z "$branches" ]; then
-  warn "Belum Ada Branch, Menggunakan 'main'"
-  branch="main"
-else
-  i=1
-  declare -a branch_list
+i=1
+declare -a branch_list
 
-  while read -r b; do
-    echo -e "${YELLOW}[$i]${NC} $b"
-    branch_list[$i]=$b
-    ((i++))
-  done <<< "$branches"
+while read -r b; do
+  echo -e "${YELLOW}[$i]${NC} $b"
+  branch_list[$i]=$b
+  ((i++))
+done <<< "$branches"
 
-  echo -e "${YELLOW}[0]${NC} Buat Branch Baru"
+echo -e "${YELLOW}[0]${NC} Buat Branch Baru"
 
-  # 🔥 LOOP PILIH BRANCH
-  while true; do
-    echo ""
-    read -p "👉 Masukkan Nomor Branch: " pilih_branch
+# =========================
+# LOOP PILIH BRANCH
+# =========================
+while true; do
+  echo ""
+  read -p "👉 Masukkan Nomor Branch: " pilih_branch
 
-    if [ "$pilih_branch" = "0" ]; then
+  if [ "$pilih_branch" = "0" ]; then
+    while true; do
       read -p "✨ Masukkan Nama Branch Baru: " branch
       if [ -n "$branch" ]; then
-        break
+        break 2
       else
         warn "Nama Branch Tidak Boleh Kosong"
       fi
-    else
-      branch=${branch_list[$pilih_branch]}
+    done
+  else
+    branch=${branch_list[$pilih_branch]}
 
-      if [ -n "$branch" ]; then
-        break
-      else
-        warn "Pilihan Tidak Valid, Coba Lagi"
-      fi
+    if [ -n "$branch" ]; then
+      break
+    else
+      warn "Pilihan Tidak Valid, Coba Lagi"
     fi
-  done
-fi
+  fi
+done
 
 success "Branch Dipilih: $branch"
 echo ""
@@ -201,16 +209,11 @@ echo ""
 # =========================
 info "Menyiapkan Repository Lokal..."
 
+# 🔥 AUTO HAPUS .git TANPA TANYA
 if [ -d ".git" ]; then
-  warn "Ditemukan Folder .git Lama"
-  read -p "❓ Hapus? (y/n): " confirm
-  if [ "$confirm" = "y" ]; then
-    rm -rf .git
-    success "Folder .git Dihapus"
-  else
-    error "Dibatalkan"
-    exit 1
-  fi
+  warn "Folder .git Lama Ditemukan, Menghapus Otomatis..."
+  rm -rf .git
+  success "Folder .git Lama Dihapus"
 fi
 
 git init > /dev/null 2>&1
