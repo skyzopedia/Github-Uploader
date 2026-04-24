@@ -37,7 +37,7 @@ info() {
 # =========================
 clear
 line
-echo -e "${CYAN}   🚀 GitHub Smart Uploader${NC}"
+echo -e "${CYAN} 🚀 Skyzopedia GitHub Uploader${NC}"
 line
 echo ""
 
