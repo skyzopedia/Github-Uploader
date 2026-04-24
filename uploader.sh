@@ -10,7 +10,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # no color
+NC='\033[0m'
 
 line() {
   echo -e "${CYAN}----------------------------------------${NC}"
@@ -50,25 +50,25 @@ echo ""
 # =========================
 # AMBIL USERNAME
 # =========================
-info "Mengambil data akun..."
+info "Mengambil Data Akun..."
 username=$(curl -s -H "Authorization: token $token" https://api.github.com/user | grep '"login"' | cut -d '"' -f4)
 
 if [ -z "$username" ]; then
-  error "Token tidak valid!"
+  error "Token Tidak Valid!"
   exit 1
 fi
 
-success "Login sebagai: $username"
+success "Berhasil Login Sebagai: $username"
 echo ""
 
 # =========================
 # PILIH REPO
 # =========================
-info "Mengambil daftar repository..."
+info "Mengambil Daftar Repository..."
 repos=$(curl -s -H "Authorization: token $token" https://api.github.com/user/repos?per_page=100 | grep '"name"' | cut -d '"' -f4)
 
 if [ -z "$repos" ]; then
-  error "Tidak ada repository"
+  error "Tidak Ditemukan Repository"
   exit 1
 fi
 
@@ -86,22 +86,22 @@ while read -r repo; do
 done <<< "$repos"
 
 echo ""
-read -p "👉 Pilih nomor repo: " pilih_repo
+read -p "👉 Masukkan Nomor Repository: " pilih_repo
 
 repo=${repo_list[$pilih_repo]}
 
 if [ -z "$repo" ]; then
-  error "Pilihan repo tidak valid"
+  error "Pilihan Repository Tidak Valid"
   exit 1
 fi
 
-success "Repo dipilih: $repo"
+success "Repository Dipilih: $repo"
 echo ""
 
 # =========================
 # PILIH BRANCH
 # =========================
-info "Mengambil daftar branch..."
+info "Mengambil Daftar Branch..."
 
 branches=$(curl -s -H "Authorization: token $token" https://api.github.com/repos/$username/$repo/branches | grep '"name"' | cut -d '"' -f4)
 
@@ -110,7 +110,7 @@ echo -e "${CYAN}🌿 Pilih Branch${NC}"
 line
 
 if [ -z "$branches" ]; then
-  warn "Tidak ada branch, gunakan 'main'"
+  warn "Tidak Ditemukan Branch, Menggunakan 'main'"
   branch="main"
 else
   i=1
@@ -122,39 +122,39 @@ else
     ((i++))
   done <<< "$branches"
 
-  echo -e "${YELLOW}[0]${NC} Buat branch baru"
+  echo -e "${YELLOW}[0]${NC} Buat Branch Baru"
   echo ""
 
-  read -p "👉 Pilih nomor branch: " pilih_branch
+  read -p "👉 Masukkan Nomor Branch: " pilih_branch
 
   if [ "$pilih_branch" = "0" ]; then
-    read -p "✨ Nama branch baru: " branch
+    read -p "✨ Masukkan Nama Branch Baru: " branch
   else
     branch=${branch_list[$pilih_branch]}
   fi
 
   if [ -z "$branch" ]; then
-    error "Pilihan branch tidak valid"
+    error "Pilihan Branch Tidak Valid"
     exit 1
   fi
 fi
 
-success "Branch dipilih: $branch"
+success "Branch Dipilih: $branch"
 echo ""
 
 # =========================
 # SETUP GIT
 # =========================
-info "Menyiapkan repository..."
+info "Menyiapkan Repository..."
 
 if [ -d ".git" ]; then
-  warn "Ditemukan folder .git lama"
-  read -p "❓ Hapus? (y/n): " confirm
+  warn "Ditemukan Folder .git Lama"
+  read -p "❓ Apakah Ingin Menghapusnya? (y/n): " confirm
   if [ "$confirm" = "y" ]; then
     rm -rf .git
-    success ".git lama dihapus"
+    success "Folder .git Lama Berhasil Dihapus"
   else
-    error "Dibatalkan"
+    error "Proses Dibatalkan"
     exit 1
   fi
 fi
@@ -164,14 +164,14 @@ git init > /dev/null 2>&1
 git config user.name "$username"
 git config user.email "$username@users.noreply.github.com"
 
-info "Menambahkan file..."
+info "Menambahkan File ke Stage..."
 git add .
 
 if git diff --cached --quiet; then
-  warn "Tidak ada perubahan"
+  warn "Tidak Ada Perubahan untuk Di-commit"
 else
   git commit -m "Upload: $(date)" > /dev/null 2>&1
-  success "Commit berhasil"
+  success "Commit Berhasil Dibuat"
 fi
 
 git branch -M "$branch"
@@ -179,10 +179,10 @@ git branch -M "$branch"
 remote_url="https://$token@github.com/$username/$repo.git"
 
 if git remote | grep origin > /dev/null; then
-  info "Update remote origin..."
+  info "Memperbarui Remote Origin..."
   git remote set-url origin "$remote_url"
 else
-  info "Menambahkan remote..."
+  info "Menambahkan Remote Origin..."
   git remote add origin "$remote_url"
 fi
 
@@ -190,19 +190,19 @@ fi
 # PUSH
 # =========================
 line
-info "Mengupload ke GitHub..."
+info "Mengunggah ke GitHub..."
 line
 
 if git push -u origin "$branch"; then
-  success "Upload berhasil!"
+  success "Upload Berhasil!"
 else
-  warn "Push gagal, mencoba force..."
+  warn "Push Gagal, Mencoba Force Push..."
   git push -u origin "$branch" --force
-  success "Force push berhasil!"
+  success "Force Push Berhasil!"
 fi
 
 echo ""
 line
-echo -e "${GREEN}🎉 SELESAI!${NC}"
+echo -e "${GREEN}🎉 PROSES SELESAI!${NC}"
 echo -e "${CYAN}🔗 https://github.com/$username/$repo${NC}"
 line
