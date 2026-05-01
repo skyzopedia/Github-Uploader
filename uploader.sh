@@ -12,119 +12,93 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-line() {
-  echo -e "${CYAN}----------------------------------------${NC}"
-}
+line(){ echo -e "${CYAN}----------------------------------------${NC}"; }
+success(){ echo -e "${GREEN}[✔] $1${NC}"; }
+error(){ echo -e "${RED}[✖] $1${NC}"; }
+warn(){ echo -e "${YELLOW}[!] $1${NC}"; }
+info(){ echo -e "${BLUE}[*] $1${NC}"; }
 
-success() {
-  echo -e "${GREEN}[✔] $1${NC}"
-}
-
-error() {
-  echo -e "${RED}[✖] $1${NC}"
-}
-
-warn() {
-  echo -e "${YELLOW}[!] $1${NC}"
-}
-
-info() {
-  echo -e "${BLUE}[*] $1${NC}"
-}
-
-# =========================
-# HEADER
-# =========================
 clear
 line
-echo -e "${CYAN}   🚀 GitHub Smart Uploader${NC}"
+echo -e "${CYAN}🚀 GitHub Smart Uploader (Stable)${NC}"
 line
 echo ""
 
 # =========================
-# INPUT TOKEN
+# 🔥 AUTO FIX TERMUX GIT
+# =========================
+git config --global --add safe.directory "$(pwd)" 2>/dev/null
+git config --global init.defaultBranch main 2>/dev/null
+
+# =========================
+# 🔥 HAPUS .git DI AWAL
+# =========================
+if [ -d ".git" ]; then
+  warn "Folder .git lama terdeteksi (awal), menghapus..."
+  rm -rf .git
+  success ".git berhasil dibersihkan"
+fi
+
+# =========================
+# TOKEN
 # =========================
 while true; do
   read -p "🔑 Masukkan GitHub Token: " token
 
-  info "Memvalidasi Token..."
+  info "Validasi token..."
   username=$(curl -s -H "Authorization: token $token" https://api.github.com/user | grep '"login"' | cut -d '"' -f4)
 
-  if [ -n "$username" ]; then
-    success "Login Sebagai: $username"
-    break
-  else
-    error "Token Tidak Valid, Coba Lagi!"
-  fi
+  [ -n "$username" ] && { success "Login: $username"; break; } || error "Token salah!"
 done
 
 echo ""
 
 # =========================
-# AMBIL REPO
+# REPO
 # =========================
-info "Mengambil Daftar Repository..."
+info "Mengambil repository..."
 repos=$(curl -s -H "Authorization: token $token" https://api.github.com/user/repos?per_page=100 | grep '"name"' | cut -d '"' -f4)
 
 line
 echo -e "${CYAN}📦 Pilih Repository${NC}"
 line
-
 echo -e "${YELLOW}[0]${NC} Buat Repository Baru"
 
 i=1
 declare -a repo_list
 
-while read -r repo; do
-  echo -e "${YELLOW}[$i]${NC} $repo"
-  repo_list[$i]=$repo
+while read -r r; do
+  echo -e "${YELLOW}[$i]${NC} $r"
+  repo_list[$i]=$r
   ((i++))
 done <<< "$repos"
 
 while true; do
-  echo ""
-  read -p "👉 Masukkan Nomor Repository: " pilih_repo
+  read -p "👉 Nomor: " pilih_repo
 
   if [ "$pilih_repo" = "0" ]; then
-    while true; do
-      read -p "✨ Masukkan Nama Repository Baru: " repo
-      [ -n "$repo" ] && break || warn "Nama tidak boleh kosong"
-    done
+    read -p "Nama repo: " repo
+    read -p "Private? (y/n): " p
+    [ "$p" = "y" ] && private=true || private=false
 
-    echo ""
-    echo -e "${CYAN}🔓 Pilih Visibilitas${NC}"
-    echo -e "${YELLOW}[1]${NC} Public"
-    echo -e "${YELLOW}[2]${NC} Private"
-
-    while true; do
-      read -p "👉 Pilih (1/2): " vis
-      case $vis in
-        1) private=false; break ;;
-        2) private=true; break ;;
-        *) warn "Pilih 1 atau 2" ;;
-      esac
-    done
-
-    info "Membuat repository..."
-    res=$(curl -s -X POST https://api.github.com/user/repos \
+    curl -s -X POST https://api.github.com/user/repos \
       -H "Authorization: token $token" \
-      -d "{\"name\":\"$repo\",\"private\":$private}")
+      -d "{\"name\":\"$repo\",\"private\":$private}" >/dev/null
 
-    echo "$res" | grep -q '"full_name"' && success "Repo dibuat" || { error "Gagal buat repo"; exit 1; }
-
+    success "Repo dibuat"
     break
   else
     repo=${repo_list[$pilih_repo]}
-    [ -n "$repo" ] && { success "Repository Dipilih: $repo"; break; } || warn "Pilihan salah"
+    [ -n "$repo" ] && { success "Repo: $repo"; break; } || warn "Salah pilih"
   fi
 done
 
 echo ""
 
 # =========================
-# AMBIL BRANCH
+# BRANCH
 # =========================
-info "Mengambil Daftar Branch..."
+info "Mengambil branch..."
 branches=$(curl -s -H "Authorization: token $token" https://api.github.com/repos/$username/$repo/branches | grep '"name"' | cut -d '"' -f4)
 
 line
@@ -140,35 +114,28 @@ while read -r b; do
   ((i++))
 done <<< "$branches"
 
-echo -e "${YELLOW}[0]${NC} Buat Branch Baru / Default (main)"
+echo -e "${YELLOW}[0]${NC} Default / Buat Baru (main)"
 
 while true; do
-  echo ""
-  read -p "👉 Masukkan Nomor Branch: " pilih_branch
+  read -p "👉 Nomor: " pilih_branch
 
   if [ "$pilih_branch" = "0" ]; then
-    read -p "✨ Nama Branch (kosong = main): " branch
+    read -p "Nama branch (kosong=main): " branch
     [ -z "$branch" ] && branch="main"
     break
   else
     branch=${branch_list[$pilih_branch]}
-    [ -n "$branch" ] && break || warn "Pilihan tidak valid"
+    [ -n "$branch" ] && break || warn "Pilihan salah"
   fi
 done
 
-success "Branch Dipilih: $branch"
+success "Branch: $branch"
 echo ""
 
 # =========================
-# SETUP GIT (FIXED)
+# SETUP GIT
 # =========================
-info "Menyiapkan Repository Lokal..."
-
-if [ -d ".git" ]; then
-  warn "Menghapus .git lama..."
-  rm -rf .git
-  success ".git dihapus"
-fi
+info "Setup git..."
 
 git init > /dev/null 2>&1
 
@@ -177,15 +144,14 @@ git checkout -b "$branch" > /dev/null 2>&1 || git checkout "$branch"
 git config user.name "$username"
 git config user.email "$username@users.noreply.github.com"
 
-info "Menambahkan file..."
 git add .
 
 if git diff --cached --quiet; then
-  warn "Tidak ada perubahan, commit kosong..."
+  warn "Kosong → commit init"
   git commit --allow-empty -m "Init" > /dev/null 2>&1
 else
   git commit -m "Upload: $(date)" > /dev/null 2>&1
-  success "Commit berhasil"
+  success "Commit OK"
 fi
 
 remote_url="https://$token@github.com/$username/$repo.git"
@@ -195,19 +161,12 @@ git remote add origin "$remote_url" 2>/dev/null || git remote set-url origin "$r
 # PUSH
 # =========================
 line
-info "Mengunggah ke GitHub..."
+info "Push ke GitHub..."
 line
 
-if git push -u origin "$branch"; then
-  success "Upload Berhasil!"
-else
-  warn "Push gagal, force push..."
-  git push -u origin "$branch" --force
-  success "Force push berhasil!"
-fi
+git push -u origin "$branch" 2>/dev/null || git push -u origin "$branch" --force
 
+success "Upload selesai!"
 echo ""
-line
-echo -e "${GREEN}🎉 SELESAI!${NC}"
-echo -e "${CYAN}🔗 https://github.com/$username/$repo${NC}"
+echo -e "${CYAN}https://github.com/$username/$repo${NC}"
 line
