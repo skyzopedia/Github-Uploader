@@ -42,7 +42,7 @@ line
 echo ""
 
 # =========================
-# INPUT TOKEN (LOOP)
+# INPUT TOKEN
 # =========================
 while true; do
   read -p "🔑 Masukkan GitHub Token: " token
@@ -81,73 +81,41 @@ while read -r repo; do
   ((i++))
 done <<< "$repos"
 
-# =========================
-# LOOP PILIH REPO
-# =========================
 while true; do
   echo ""
   read -p "👉 Masukkan Nomor Repository: " pilih_repo
 
-  # ===== BUAT REPO BARU =====
   if [ "$pilih_repo" = "0" ]; then
-
-    # Nama repo valid
     while true; do
       read -p "✨ Masukkan Nama Repository Baru: " repo
-      if [ -n "$repo" ]; then
-        break
-      else
-        warn "Nama Repository Tidak Boleh Kosong"
-      fi
+      [ -n "$repo" ] && break || warn "Nama tidak boleh kosong"
     done
 
-    # Visibility
     echo ""
-    echo -e "${CYAN}🔓 Pilih Visibilitas Repository${NC}"
+    echo -e "${CYAN}🔓 Pilih Visibilitas${NC}"
     echo -e "${YELLOW}[1]${NC} Public"
     echo -e "${YELLOW}[2]${NC} Private"
 
     while true; do
-      read -p "👉 Masukkan Nomor (1/2): " vis_choice
-      case $vis_choice in
-        1)
-          private=false
-          success "Visibilitas: Public"
-          break
-          ;;
-        2)
-          private=true
-          success "Visibilitas: Private"
-          break
-          ;;
-        *)
-          warn "Input Tidak Valid, Pilih 1 atau 2"
-          ;;
+      read -p "👉 Pilih (1/2): " vis
+      case $vis in
+        1) private=false; break ;;
+        2) private=true; break ;;
+        *) warn "Pilih 1 atau 2" ;;
       esac
     done
 
-    info "Membuat Repository Baru..."
-
-    response=$(curl -s -X POST https://api.github.com/user/repos \
+    info "Membuat repository..."
+    res=$(curl -s -X POST https://api.github.com/user/repos \
       -H "Authorization: token $token" \
       -d "{\"name\":\"$repo\",\"private\":$private}")
 
-    if echo "$response" | grep -q '"full_name"'; then
-      success "Repository Berhasil Dibuat: $repo"
-      break
-    else
-      error "Gagal Membuat Repository, Coba Lagi!"
-    fi
+    echo "$res" | grep -q '"full_name"' && success "Repo dibuat" || { error "Gagal buat repo"; exit 1; }
 
+    break
   else
     repo=${repo_list[$pilih_repo]}
-
-    if [ -n "$repo" ]; then
-      success "Repository Dipilih: $repo"
-      break
-    else
-      warn "Pilihan Tidak Valid, Coba Lagi"
-    fi
+    [ -n "$repo" ] && { success "Repository Dipilih: $repo"; break; } || warn "Pilihan salah"
   fi
 done
 
@@ -172,32 +140,19 @@ while read -r b; do
   ((i++))
 done <<< "$branches"
 
-echo -e "${YELLOW}[0]${NC} Buat Branch Baru"
+echo -e "${YELLOW}[0]${NC} Buat Branch Baru / Default (main)"
 
-# =========================
-# LOOP PILIH BRANCH
-# =========================
 while true; do
   echo ""
   read -p "👉 Masukkan Nomor Branch: " pilih_branch
 
   if [ "$pilih_branch" = "0" ]; then
-    while true; do
-      read -p "✨ Masukkan Nama Branch Baru: " branch
-      if [ -n "$branch" ]; then
-        break 2
-      else
-        warn "Nama Branch Tidak Boleh Kosong"
-      fi
-    done
+    read -p "✨ Nama Branch (kosong = main): " branch
+    [ -z "$branch" ] && branch="main"
+    break
   else
     branch=${branch_list[$pilih_branch]}
-
-    if [ -n "$branch" ]; then
-      break
-    else
-      warn "Pilihan Tidak Valid, Coba Lagi"
-    fi
+    [ -n "$branch" ] && break || warn "Pilihan tidak valid"
   fi
 done
 
@@ -205,33 +160,33 @@ success "Branch Dipilih: $branch"
 echo ""
 
 # =========================
-# SETUP GIT
+# SETUP GIT (FIXED)
 # =========================
 info "Menyiapkan Repository Lokal..."
 
-# 🔥 AUTO HAPUS .git TANPA TANYA
 if [ -d ".git" ]; then
-  warn "Folder .git Lama Ditemukan, Menghapus Otomatis..."
+  warn "Menghapus .git lama..."
   rm -rf .git
-  success "Folder .git Lama Dihapus"
+  success ".git dihapus"
 fi
 
 git init > /dev/null 2>&1
 
+git checkout -b "$branch" > /dev/null 2>&1 || git checkout "$branch"
+
 git config user.name "$username"
 git config user.email "$username@users.noreply.github.com"
 
-info "Menambahkan File..."
+info "Menambahkan file..."
 git add .
 
 if git diff --cached --quiet; then
-  warn "Tidak Ada Perubahan"
+  warn "Tidak ada perubahan, commit kosong..."
+  git commit --allow-empty -m "Init" > /dev/null 2>&1
 else
   git commit -m "Upload: $(date)" > /dev/null 2>&1
-  success "Commit Berhasil"
+  success "Commit berhasil"
 fi
-
-git branch -M "$branch"
 
 remote_url="https://$token@github.com/$username/$repo.git"
 git remote add origin "$remote_url" 2>/dev/null || git remote set-url origin "$remote_url"
@@ -246,13 +201,13 @@ line
 if git push -u origin "$branch"; then
   success "Upload Berhasil!"
 else
-  warn "Push Gagal, Mencoba Force Push..."
+  warn "Push gagal, force push..."
   git push -u origin "$branch" --force
-  success "Force Push Berhasil!"
+  success "Force push berhasil!"
 fi
 
 echo ""
 line
-echo -e "${GREEN}🎉 PROSES SELESAI!${NC}"
+echo -e "${GREEN}🎉 SELESAI!${NC}"
 echo -e "${CYAN}🔗 https://github.com/$username/$repo${NC}"
 line
